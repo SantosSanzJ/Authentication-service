@@ -1,27 +1,28 @@
 import uuid
 import json
+import Ice
+import time
+Ice.loadSlice('iceflix/iceflix.ice')
 
 with open("./files/users.json", "r") as f:
     users = json.load(f)
-#podemos añadir una timestamp en el value del token, para saber si se ha caducado si es 30 o más.
 #se genera un servicio unico con UUID, no se repitan en el mismo proceso
-#Puedes tener un timer en otro
+#Puedes tener un timer en otro hilo
 #current.adapter.addWithUUID
 #usar tox
 #integración continua yaml, travis, jenkins, github actions
 #Fomrateo con githubs actions con Black
 #token = (username, timestamp)
-#si usa un token cuyo timestamp es 30 s posterior al time actual se vuelve inutil
-
+#se tendría que ejecutar usando iceflix-authenticator --Ice.Config=configs/authenticator.config
+#si queremos timer 
 auth_table = {} #Mapear token a nombre de usuario
-admin_token = "123"
-
+admin_token = "1234"
 
 def refreshAuthorization(user, passwordhash): 
     '''Dado un usuario y su contraseña crea un token si son válidos.'''
     if user in users and users[user] == passwordhash:
         token = crear_token()
-        auth_table.update({token:(user)})
+        auth_table.update({token:(user,time.time())})
         return token
     #else:
     #    raise iceflix.Unauthorized
@@ -29,12 +30,17 @@ def refreshAuthorization(user, passwordhash):
 
 def isAuthorized(userToken): 
     '''Dado un token devuelves si existe.'''
+    auth = False
+    if userToken in auth_table and auth_table[userToken] + 120 > time.time():
+        auth = True
+    elif userToken in auth_table:
+        del auth_table[userToken]
     return userToken in auth_table
 
 def whois(userToken): 
     '''Dado un Token te da un usuario válido.'''
     if userToken in auth_table:
-        return auth_table[userToken]
+        return auth_table[userToken][0]
     #else:
     #    raise iceflix.Unauthorized
 
@@ -67,6 +73,7 @@ def main():
     addUser("jajas","123","123")
     token = refreshAuthorization("jajas","123")
     print(whois(token))
+    print(auth_table)
     removeUser("jajas","123")
 
 main()

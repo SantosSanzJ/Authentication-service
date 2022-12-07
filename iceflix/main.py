@@ -5,7 +5,7 @@ import logging
 import Ice
 
 import IceFlix
-
+from authenticator import AuthenticatorService
 
 class Main(IceFlix.Main):
     """Servant for the IceFlix.Main interface.
@@ -16,7 +16,8 @@ class Main(IceFlix.Main):
 
     def getAuthenticator(self, current):
         # TODO: implement
-        return None
+        Authenticator = AuthenticatorService()
+        return Authenticator
 
     def getCatalog(self, current):
         # TODO: implement

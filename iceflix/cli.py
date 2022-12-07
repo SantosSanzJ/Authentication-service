@@ -2,9 +2,9 @@
 
 import logging
 import sys
-
+#import mi clase autenticator
 from iceflix.main import MainApp
-
+from iceflix.authenticator import Authenticator
 
 def setup_logging():
     """Configure the logging."""
@@ -33,7 +33,7 @@ def streamprovider_service():
 def authentication_service():
     """Handles the `authenticationservice` CLI command."""
     print("Authentication service")
-    sys.exit(0)
+    return Authenticator().main(sys.argv)
 
 
 def client():
