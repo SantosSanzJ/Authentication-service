@@ -1,7 +1,7 @@
 """Module containing a template for a main service."""
 
 import logging
-
+import sys
 import Ice
 
 import IceFlix
@@ -24,11 +24,11 @@ class Main(IceFlix.Main):
         return None
     
     def newService(self, object, service_id, current):
-        # TODO: implement
+        print("El servicio ha hecho newService")
         return
     
     def announce(self, object, service_id, current):
-        # TODO: implement
+        print("El servicio se ha anunciado.")
         return
 
 
@@ -47,10 +47,12 @@ class MainApp(Ice.Application):
         comm = self.communicator()
         self.adapter = comm.createObjectAdapter("MainAdapter")
         self.adapter.activate()
-
+        #self.proxy = self.adapter.add(self.servant, comm.stringToIdentity("main1"))
         self.proxy = self.adapter.addWithUUID(self.servant)
-
+        print(self.proxy, flush = False)
         self.shutdownOnInterrupt()
         comm.waitForShutdown()
-
         return 0
+if __name__ == "__main__":
+    MainApp = MainApp()
+    sys.exit(MainApp.main(sys.argv))

@@ -1,104 +1,129 @@
+'''Programa pedido para el primera entrega parcial.'''
+#pylint: disable=E0401
+import sys
+import time
 import uuid
 import json
+from threading import Timer
 import Ice
-import time
 import IceFlix
-import sys
-#hay que ejecutarlo como si fuera
-#pip install -e . install te crea 
-#Ice.loadSlice('iceflix/iceflix.ice') ya lo haces al importar.
-
-with open("../files/users.json", "r") as f:
-    users = json.load(f)
-#new service
-#si te pide un usuario un token y luego te pide otro antes de 2 minutos, hay invalidar el segundo
-#se genera un servicio unico con UUID, no se repitan en el mismo proceso
-#Puedes tener un timer en otro hilo
-#current.adapter.addWithUUID
-#usar tox
-#integración continua yaml, travis, jenkins, github actions
-#Fomrateo con githubs actions con Black
-#Pregunta: Cómo se podría solucionar un fallo de diseño?
-
-auth_table = {} #Mapear token a nombre de usuario
+#pylint: disable=C0103
+#pylint: disable=C0303
+#pylint: disable=W0613
+#pylint: disable=R1710
 
 
-#que hago con la excepcion temporary unaivalable?
-#En el main tnego que crear authentiucator o authenticationService
-#anounce?
-#Las excepciones las controla el auth o el main?
+with open("./files/users.json","r",encoding="utf-8") as file:
+    users = json.load(file)
+
+auth_table = {} #Mapear token a nombre de usuario y timestamp
 class Authenticator(IceFlix.Authenticator):
+    '''Sirvente que implementa el Autenticator.'''
     admin_token = ""
-
     def __init__(self, admin_token):
         self.admin_token = admin_token
 
-    def refreshAuthorization(self,user, passwordhash, current = None): 
-        '''Dado un usuario y su contraseña crea un token si son válidos.'''
-        if user in users and users[user] == passwordhash:
-            token = self.crear_token()
-            auth_table.update({token:(user,time.time())})
-            return token
-        else:
-            raise IceFlix.Unauthorized
+    def refreshAuthorization(self,user:str, passwordhash:str, current = None): 
+        '''Dado un usuario y su contraseña crea un token si son válidos.
+        Si el usuario tiene un token anterior lo borra.'''
+        try:
+            if user in users and users[user] == passwordhash:
 
-    def isAuthorized(self,userToken, current = None): 
+                token_antiguo = [token for token,list in auth_table.items() if user == list[0]]
+                if not token_antiguo == []:
+                    del auth_table[token_antiguo[0]]
+            
+                token = self.crear_token()
+                auth_table.update({token:(user,time.time())})
+                return token
+            raise IceFlix.Unauthorized
+        except IceFlix.Unauthorized:
+            print("El usuario y la contraseña no es válido.")
+            return None
+
+    def isAuthorized(self,userToken:str, current = None): 
         '''Dado un token devuelves si existe.'''
-        auth = False
-        if userToken in auth_table and auth_table[userToken] + 120 > time.time():
-            auth = True
-        elif userToken in auth_table:
+        if userToken in auth_table and not auth_table[userToken][1] + 120 > time.time():
             del auth_table[userToken]
         return userToken in auth_table
 
-    def whois(self, userToken, current = None): 
+    def whois(self, userToken:str, current = None): 
         '''Dado un Token te da un usuario válido.'''
-        if userToken in auth_table:
-            return auth_table[userToken][0]
-        else:
+        try:
+            if userToken in auth_table:
+                return auth_table[userToken][0]
             raise IceFlix.Unauthorized
+        except IceFlix.Unauthorized:
+            print("El token no existe.")
+            return None
 
-    def isAdmin(self, adminToken, current = None): 
-        '''Dado un token devuelve si es Admin o no. Lo saco del config y hago una comparación simple.'''
+    def isAdmin(self, adminToken:str, current = None): 
+        '''Dado un token devuelve si es Admin o no. Lo saco del config
+        y hago una comparación simple.'''
         return self.admin_token == adminToken
 
-    def addUser(self, user,passwordhash,adminToken, current = None): 
+    def addUser(self, user:str,passwordhash:str,adminToken:str, current = None): 
         '''Dado un token admin y un usuario y contraseña metelos en la BBDD.'''
-        if self.isAdmin(adminToken) and not user in users: #Temporary Unvaidable?
-            users[user] = passwordhash
-            with open("../files/users.json","w") as f:
-                json.dump(users, f)
-        else:
-            raise IceFlix.Unauthorized
+        try:
+            if self.isAdmin(adminToken) and not user in users:
+                users[user] = passwordhash
+                with open("./files/users.json","w",encoding="utf-8") as f:
+                    json.dump(users, f)
+            else:
+                raise IceFlix.Unauthorized
+        except IceFlix.Unauthorized:
+            print("El token admin no es válido o ya existe el nombre dado.")
+            return None
 
-    def removeUser(self,user, adminToken, current = None): 
+    def removeUser(self,user:str, adminToken:str, current = None): 
         '''Dado un user y un token de admin elimina a un usuario de la BBDD.'''
-        if self.isAdmin(adminToken) and user in users: #Temporary Unvaidable?
-            del users[user]
-            with open("../files/users.json","w") as f:
-                json.dump(users, f)
-        else:
-            raise IceFlix.Unauthorized
-
-    def crear_token():
+        try:
+            if self.isAdmin(adminToken) and user in users: 
+                del users[user]
+                with open("./files/users.json","w", encoding="utf-8") as f:
+                    json.dump(users, f)
+            else:
+                raise IceFlix.Unauthorized
+        except IceFlix.Unauthorized:
+            print("El token admin no es válido o no existe el usuario que se quiere eliminar.")
+            return None
+    def crear_token(self):
+        '''Crea un token único.'''
         return uuid.uuid4().hex[:6].upper()
 
+
 class AuthenticatorService(Ice.Application):
-    def run(self, argv):
-        #como consigo el proxy de main?
+    '''Aplicación de Ice que se comunicará con el main, para pasarle
+    referencia en newService o announce.'''
+    id_servicio = uuid.uuid4().hex[:6].upper()
+    def run(self, args):
         broker = self.communicator()
         properties = broker.getProperties()
-        adminToken = properties.getProperty("AdminToken")
-        #el adminToken lo meto por constructor?
-        servant = Authenticator(adminToken)
+
+        main_proxy = broker.propertyToProxy("Main.Proxy")
+        main = IceFlix.MainPrx.checkedCast(main_proxy)
+
+        admin_token = properties.getProperty("AdminToken")
+        servant = Authenticator(admin_token)
+
         adapter = broker.createObjectAdapter("AuthenticatorAdapter")
         proxy = adapter.add(servant, broker.stringToIdentity("Authenticator1"))
-        print(proxy, flush = False)
+        
+        main.newService(proxy,self.id_servicio)
+        announce_timer(main,proxy,self.id_servicio, True)
+        
         adapter.activate()
         self.shutdownOnInterrupt()
-        #tengo que guardarlo en algún sitio el objeto en main?
         broker.waitForShutdown()
         return 0
+
+def announce_timer(main,proxy,id_servicio,primera_ejecuccion):
+    '''Ejecuta el anunciamiento cada 25 segundos.'''
+    my_timer = Timer(25.0,announce_timer,[main,proxy,id_servicio,False])
+    if not primera_ejecuccion:
+        main.announce(proxy,id_servicio)
+    my_timer.start()
+    return my_timer
 
 if __name__ == "__main__":
     AuthenticatorService = AuthenticatorService()

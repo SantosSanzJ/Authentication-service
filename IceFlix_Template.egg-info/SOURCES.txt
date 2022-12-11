@@ -8,6 +8,7 @@ IceFlix_Template.egg-info/entry_points.txt
 IceFlix_Template.egg-info/requires.txt
 IceFlix_Template.egg-info/top_level.txt
 iceflix/__init__.py
+iceflix/authenticator.py
 iceflix/cli.py
 iceflix/iceflix.ice
 iceflix/iceflix_ice.py
