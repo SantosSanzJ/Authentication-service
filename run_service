@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
-iceflix-main --Ice.Config=configs/main.config
-iceflix-authenticator --Ice.Config=configs/authenticator.config
+echo "Launching Authenticator..."
+python3 ./iceflix/authenticator.py --Ice.Config=./configs/authenticator.config
